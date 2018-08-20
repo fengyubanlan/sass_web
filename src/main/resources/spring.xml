@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:aop="http://www.springframework.org/schema/aop"
+    xmlns:lang="http://www.springframework.org/schema/lang"
+    xmlns:tx="http://www.springframework.org/schema/tx"
+    xmlns:context="http://www.springframework.org/schema/context"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans
+    http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+    http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-3.0.xsd
+    http://www.springframework.org/schema/lang http://www.springframework.org/schema/lang/spring-lang-3.0.xsd
+    http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-3.0.xsd
+    http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.0.xsd">
+
+    <!--加载配置文件-->
+    <context:property-placeholder location="classpath:config.properties" ignore-unresolvable="true"/>
+    <!--依赖注入，扫描-->
+    <context:component-scan base-package="com.sass.bo"></context:component-scan>
+    <!--开启注解-->
+    <context:annotation-config />
+    <!--把查询慢的sql写到日志里面 -->
+    <bean id="stat-filter" class="com.alibaba.druid.filter.stat.StatFilter">
+        <property name="slowSqlMillis" value="1" />
+        <property name="logSlowSql" value="true" />
+        <!-- 合并同样的sql语句 -->
+        <property name="mergeSql" value="true" />
+    </bean>
+    <!-- 配置要写入日志哪种dataSource信息 -->
+    <bean id="log-filter" class="com.alibaba.druid.filter.logging.Slf4jLogFilter">
+        <property name="dataSourceLogEnabled" value="true" />
+        <property name="resultSetLogEnabled" value="true"/>
+    </bean>
+    <bean id="dataSource" class="com.alibaba.druid.pool.DruidDataSource">
+    <!--加载数据源-->
+        <property name="url" value="${jdbc.url}" />
+        <property name="username" value="${jdbc.user}" />
+        <property name="password" value="${jdbc.password}" />
+        <!-- 配置初始化大小、最小、最大 -->
+        <property name="initialSize" value="${druid.initialSize}" />
+        <property name="minIdle" value="${druid.minIdle}" /> 
+        <property name="maxActive" value="${druid.maxActive}" />
+
+        <!-- 配置获取连接等待超时的时间 -->
+        <property name="maxWait" value="${druid.maxWait}" />
+
+        <!-- 配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒 -->
+        <property name="timeBetweenEvictionRunsMillis" value="${druid.timeBetweenEvictionRunsMillis}" />
+
+        <!-- 配置一个连接在池中最小生存的时间，单位是毫秒 -->
+        <property name="minEvictableIdleTimeMillis" value="${druid.minEvictableIdleTimeMillis}" />
+
+        <property name="validationQuery" value="SELECT 'x'" />
+        <!-- 建议配置为true，不影响性能，并且保证安全性。 申请连接的时候检测 -->
+        <property name="testWhileIdle" value="${druid.testWhileIdle}" />
+        <!-- 申请连接时执行validationQuery检测连接是否有效， 做了这个配置会降低性能 -->
+        <property name="testOnBorrow" value="${druid.testOnBorrow}" />
+        <!-- 归还连接时执行validationQuery检测连接是否有效， 做了这个配置会降低性能 -->
+        <property name="testOnReturn" value="${druid.testOnReturn}" />
+
+        <!-- 打开PSCache，并且指定每个连接上PSCache的大小 -->
+        <property name="poolPreparedStatements" value="${druid.poolPreparedStatements}" />
+        <property name="maxPoolPreparedStatementPerConnectionSize" value="${druid.maxPoolPreparedStatementPerConnectionSize}" />
+        <!-- 监控数据库 -->
+        <property name="filters" value="slf4j" />
+        <property name="proxyFilters">
+            <list>
+                <ref bean="stat-filter"/>
+                <ref bean="log-filter"/>
+            </list>
+        </property>
+    </bean>
+    <!-- mybatis -->
+    <bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <property name="dataSource" ref="dataSource" />
+        <property name="configLocation" value="classpath:mybatis.xml"></property>
+        <!-- 自动扫描entity目录, 省掉Configuration.xml里的手工配置 -->
+        <property name="mapperLocations" value="classpath:com/sass/mapper/*.xml" />
+    </bean>
+    <!-- 扫描mapper映射文件-->
+    <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="basePackage" value="com.sass.dao" />
+        <!-- 指定引用的sqlsessionFactory -->
+        <property name="sqlSessionFactoryBeanName" value="sqlSessionFactory" />
+    </bean>
+    <!--配置事务管理器-->
+    <bean id="transactionManager"
+        class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource" />
+    </bean>
+    <!-- 配置事务的传播 -->
+    <tx:advice id="transactionAdvice" transaction-manager="transactionManager">
+        <tx:attributes>
+            <!-- 需要事务处理的方法名结尾 -->
+            <tx:method name="*Affairs" propagation="REQUIRED" />
+        </tx:attributes>
+    </tx:advice>    
+    <!-- 需要事务处理的切面 -->
+    <aop:config>
+        <aop:pointcut id="transactionPointcut"
+            expression="execution(* com.sass.*.*(..))" />
+        <aop:advisor pointcut-ref="transactionPointcut"
+            advice-ref="transactionAdvice" />
+    </aop:config>
+    <!-- 事物 end -->
+</beans>
